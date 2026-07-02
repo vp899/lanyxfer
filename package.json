@@ -2,6 +2,7 @@
   "name": "lan-photo-transfer",
   "version": "1.0.0",
   "description": "局域网照片传输 - 手机扫码上传照片/视频到电脑",
+  "author": "LAN Photo Transfer",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -12,6 +13,7 @@
   "build": {
     "appId": "com.lan.photo.transfer",
     "productName": "LAN Photo Transfer",
+    "publish": null,
     "directories": {
       "output": "dist"
     },
@@ -23,15 +25,37 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64", "ia32"] },
-        { "target": "portable", "arch": ["x64", "ia32"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ],
       "icon": "renderer/icon.png"
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64"] },
-        { "target": "zip", "arch": ["arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "icon": "renderer/icon.png"
     },
@@ -43,5 +67,8 @@
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
   }
 }

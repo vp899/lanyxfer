@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const QRCode = require('qrcode');
 
 const PORT = 9876;
 const MAX_UPLOAD = 4 * 1024 * 1024 * 1024; // 4GB
@@ -10,13 +11,45 @@ const MAX_UPLOAD = 4 * 1024 * 1024 * 1024; // 4GB
 // ─── 获取局域网 IP ──────────────────────────────────────
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
+  const candidates = [];
+  
+  // 虚拟网卡关键词
+  const virtualKeywords = [
+    'vmware', 'virtualbox', 'vbox', 'docker', 'br-', 'veth',
+    'loopback', 'lo', 'tun', 'tap', 'wg', 'utun', 'bridge',
+    'hamachi', 'radmin', 'nord', 'tailscale', 'zerotier'
+  ];
+  
   for (const name of Object.keys(interfaces)) {
+    // 跳过虚拟网卡
+
+    const lowerName = name.toLowerCase();
+    if (virtualKeywords.some(k => lowerName.includes(k))) continue;
+    
     for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
+      if (iface.family !== 'IPv4' || iface.internal) continue;
+      
+      const ip = iface.address;
+      const parts = ip.split('.').map(Number);
+      
+      // 优先级：192.168.x.x > 10.x.x.x > 172.16-31.x.x > 其他
+      let priority = 0;
+      if (parts[0] === 192 && parts[1] === 168) priority = 3;
+      else if (parts[0] === 10) priority = 2;
+      else if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) priority = 1;
+      
+      candidates.push({ ip, name, priority });
     }
   }
+  
+  // 按优先级排序，取最高的
+  candidates.sort((a, b) => b.priority - a.priority);
+  
+  if (candidates.length > 0) {
+    console.log(`检测到 ${candidates.length} 个网络接口，使用: ${candidates[0].ip} (${candidates[0].name})`);
+    return candidates[0].ip;
+  }
+  
   return '127.0.0.1';
 }
 
@@ -188,6 +221,33 @@ ipcMain.handle('open-external', (_, url) => {
 
 ipcMain.handle('open-folder', (_, folderPath) => {
   shell.openPath(folderPath);
+});
+
+ipcMain.handle('generate-qr', async (_, text) => {
+  try {
+    return await QRCode.toDataURL(text, { width: 200, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('get-all-ips', () => {
+  const interfaces = os.networkInterfaces();
+  const virtualKeywords = [
+    'vmware', 'virtualbox', 'vbox', 'docker', 'br-', 'veth',
+    'loopback', 'lo', 'tun', 'tap', 'wg', 'utun', 'bridge',
+    'hamachi', 'radmin', 'nord', 'tailscale', 'zerotier'
+  ];
+  const result = [];
+  for (const name of Object.keys(interfaces)) {
+    const lowerName = name.toLowerCase();
+    if (virtualKeywords.some(k => lowerName.includes(k))) continue;
+    for (const iface of interfaces[name]) {
+      if (iface.family !== 'IPv4' || iface.internal) continue;
+      result.push({ ip: iface.address, name });
+    }
+  }
+  return result;
 });
 
 // ─── HTML 页面（手机上传用）────────────────────────────

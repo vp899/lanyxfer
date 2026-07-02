@@ -6,4 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyToClipboard: (text) => ipcRenderer.invoke('copy-text', text),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
+  generateQR: (text) => ipcRenderer.invoke('generate-qr', text),
+  getAllIPs: () => ipcRenderer.invoke('get-all-ips'),
 });

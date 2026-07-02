@@ -37,8 +37,6 @@ jobs:
 
       - name: Build
         run: ${{ matrix.build_cmd }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List artifacts
         shell: bash
