@@ -15,37 +15,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows
+          # Windows x64
           - os: windows-latest
             name: Windows-x64
             artifact: lan_photo_transfer_win64.exe
-            pyinstaller_args: --onefile
+            python_arch: x64
+
+          # Windows x86 (32-bit)
           - os: windows-latest
             name: Windows-x86
             artifact: lan_photo_transfer_win32.exe
-            pyinstaller_args: --onefile --target-architecture x86
             python_arch: x86
-          - os: windows-latest
-            name: Windows-arm64
-            artifact: lan_photo_transfer_win_arm64.exe
-            pyinstaller_args: --onefile
-            # Note: cross-compile arm64 via crossenv or use x64 binary (runs via emulation)
 
-          # macOS
+          # macOS Intel
           - os: macos-13
             name: macOS-x64
             artifact: lan_photo_transfer_macos_x64
-            pyinstaller_args: --onefile
+
+          # macOS Apple Silicon
           - os: macos-latest
             name: macOS-arm64
             artifact: lan_photo_transfer_macos_arm64
-            pyinstaller_args: --onefile --target-arch arm64
 
-          # Linux
+          # Linux x64
           - os: ubuntu-latest
             name: Linux-x64
             artifact: lan_photo_transfer_linux_x64
-            pyinstaller_args: --onefile
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
@@ -59,16 +54,11 @@ jobs:
           python-version: '3.12'
           architecture: ${{ matrix.python_arch || 'x64' }}
 
-      - name: Install dependencies
+      - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Build with PyInstaller
-        run: |
-          pyinstaller ${{ matrix.pyinstaller_args }} \
-            --name lan_photo_transfer \
-            --clean \
-            --noconfirm \
-            lan_photo_transfer.py
+      - name: Build
+        run: pyinstaller --onefile --name lan_photo_transfer --clean --noconfirm lan_photo_transfer.py
 
       - name: Rename artifact
         shell: bash
