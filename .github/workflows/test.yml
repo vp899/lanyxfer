@@ -1,4 +1,4 @@
-name: Build Test
+name: Test
 
 on:
   push:
@@ -9,29 +9,16 @@ on:
 jobs:
   test:
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
-
-      - name: Test run (5 seconds)
+          node-version: '20'
+      - run: npm ci
+      - name: Verify build config
         shell: bash
-        run: |
-          timeout 5 python lan_photo_transfer.py 2>&1 || true
-
-      - name: Install PyInstaller
-        run: pip install pyinstaller
-
-      - name: Build test
-        shell: bash
-        run: |
-          pyinstaller --onefile --name lan_photo_transfer --clean --noconfirm lan_photo_transfer.py
-          echo "Build OK on ${{ runner.os }}"
-          ls -lh dist/
+        run: node -e "const pkg=require('./package.json'); console.log('Name:', pkg.name); console.log('Main:', pkg.main); console.log('OK')"

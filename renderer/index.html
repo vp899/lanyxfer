@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' blob:;">
+<title>局域网照片传输</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #fff;
+  color: #333;
+  user-select: none;
+  overflow: hidden;
+}
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px 16px;
+  height: 100vh;
+}
+h1 { font-size: 20px; margin-bottom: 4px; }
+.sub { color: #888; font-size: 13px; margin-bottom: 16px; }
+.badge {
+  display: inline-block;
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+.qr-wrap {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+canvas { display: block; }
+.url-box {
+  background: #f5f5f5;
+  border-radius: 10px;
+  padding: 10px 16px;
+  text-align: center;
+  width: 100%;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.url-box:hover { background: #eef0ff; }
+.url-box .label { font-size: 11px; color: #999; margin-bottom: 4px; }
+.url-box .url { font-size: 15px; font-weight: 700; color: #667eea; font-family: Consolas, monospace; }
+.url-box .hint { font-size: 10px; color: #bbb; margin-top: 4px; }
+.info {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+  margin-bottom: auto;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+.status .count {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  color: #2e7d32;
+  font-weight: 600;
+}
+.btns {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-primary { background: #667eea; color: #fff; }
+.btn-primary:hover { background: #5a6fd6; }
+.btn-secondary { background: #f0f0f0; color: #333; }
+.btn-secondary:hover { background: #e4e4e4; }
+.footer {
+  font-size: 11px;
+  color: #ccc;
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+  width: 100%;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📸 局域网照片传输</h1>
+  <p class="sub">手机扫描二维码上传照片/视频</p>
+  <div class="badge">🟢 服务运行中</div>
+
+  <div class="qr-wrap">
+    <canvas id="qr" width="200" height="200"></canvas>
+  </div>
+
+  <div class="url-box" id="urlBox" title="点击复制">
+    <div class="label">手机浏览器打开</div>
+    <div class="url" id="urlText">--</div>
+    <div class="hint">点击复制地址</div>
+  </div>
+
+  <div class="info" id="infoText">
+    📂 照片保存到：桌面 / LAN_Photos<br>
+    📱 手机和电脑需在同一 WiFi
+  </div>
+
+  <div class="status">
+    <div class="count" id="countText"></div>
+  </div>
+
+  <div class="btns">
+    <button class="btn btn-primary" id="btnBrowser">🌐 打开浏览器</button>
+    <button class="btn btn-secondary" id="btnFolder">📂 打开文件夹</button>
+  </div>
+
+  <div class="footer">关闭窗口退出 · 手机电脑需同一网络</div>
+</div>
+
+<script>
+// ─── QR Code 生成（纯 JS，零依赖）────────────────────
+const QR = (() => {
+  const EC_CODEWORDS = [0,10,16,26,18,24,16,18,22,22,26];
+  const NUM_BLOCKS = [0,1,1,1,2,2,4,4,4,3,3];
+  const DATA_CW = [0,16,28,44,64,86,108,124,154,182,216];
+  const CAP_BYTES = [0,14,26,42,62,84,106,122,152,180,213];
+  const ALIGN = {2:[6,18],3:[6,22],4:[6,26],5:[6,30],6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46],10:[6,28,50]};
+  const FORMAT = [0x5412,0x5125,0x5E7C,0x5B4B,0x45F9,0x40CE,0x4F97,0x4AA0];
+
+  // GF(256)
+  const EXP = new Uint8Array(512);
+  const LOG = new Uint8Array(256);
+  let x = 1;
+  for (let i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x = (x << 1) ^ (x & 0x100 ? 0x11d : 0); }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+
+  function gfMul(a, b) { return a === 0 || b === 0 ? 0 : EXP[LOG[a] + LOG[b]]; }
+
+  function rsEncode(data, nsym) {
+    const gen = [1];
+    for (let i = 0; i < nsym; i++) {
+      const ng = new Array(gen.length + 1).fill(0);
+      for (let j = 0; j < gen.length; j++) { ng[j] ^= gen[j]; ng[j+1] ^= gfMul(gen[j], EXP[i]); }
+      gen.splice(0, gen.length, ...ng);
+    }
+    const rem = new Uint8Array(data.length + nsym);
+    rem.set(data);
+    for (let i = 0; i < data.length; i++) {
+      const c = rem[i];
+      if (c !== 0) for (let j = 0; j < gen.length; j++) rem[i+j] ^= gfMul(gen[j], c);
+    }
+    return rem.slice(data.length);
+  }
+
+  function selectVersion(len) {
+    for (let v = 1; v <= 10; v++) if (CAP_BYTES[v] >= len) return v;
+    return 10;
+  }
+
+  function encode(data, ver) {
+    let bits = '0100' + data.length.toString(2).padStart(8, '0');
+    for (const b of data) bits += b.toString(2).padStart(8, '0');
+    const total = DATA_CW[ver] * 8;
+    bits += '0'.repeat(Math.min(4, total - bits.length));
+    if (bits.length % 8) bits += '0'.repeat(8 - bits.length % 8);
+    const pads = [0xEC, 0x11]; let pi = 0;
+    while (bits.length < total) { bits += pads[pi % 2].toString(2).padStart(8, '0'); pi++; }
+    const cw = [];
+    for (let i = 0; i < total; i += 8) cw.push(parseInt(bits.slice(i, i+8), 2));
+    return cw.slice(0, DATA_CW[ver]);
+  }
+
+  function addEC(data, ver) {
+    const ecPerBlock = EC_CODEWORDS[ver], nb = NUM_BLOCKS[ver];
+    const blockSize = Math.floor(DATA_CW[ver] / nb);
+    const extra = DATA_CW[ver] % nb;
+    const dataBlocks = [], ecBlocks = [];
+    let offset = 0;
+    for (let i = 0; i < nb; i++) {
+      const sz = blockSize + (i >= nb - extra ? 1 : 0);
+      const block = data.slice(offset, offset + sz);
+      offset += sz;
+      dataBlocks.push(block);
+      ecBlocks.push(rsEncode(block, ecPerBlock));
+    }
+    const result = [];
+    const maxLen = Math.max(...dataBlocks.map(b => b.length));
+    for (let i = 0; i < maxLen; i++) for (const b of dataBlocks) if (i < b.length) result.push(b[i]);
+    for (let i = 0; i < ecPerBlock; i++) for (const b of ecBlocks) if (i < b.length) result.push(b[i]);
+    return result;
+  }
+
+  function createMatrix(ver) {
+    const size = ver * 4 + 17;
+    const matrix = Array.from({length: size}, () => new Uint8Array(size));
+    const reserved = Array.from({length: size}, () => new Uint8Array(size));
+
+    function finder(r, c) {
+      for (let dr = -1; dr <= 7; dr++) for (let dc = -1; dc <= 7; dc++) {
+        const rr = r+dr, cc = c+dc;
+        if (rr < 0 || rr >= size || cc < 0 || cc >= size) continue;
+        if (dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6) {
+          matrix[rr][cc] = (dr===0||dr===6||dc===0||dc==6||(dr>=2&&dr<=4&&dc>=2&&dc<=4)) ? 1 : 0;
+        } else { matrix[rr][cc] = 0; }
+        reserved[rr][cc] = 1;
+      }
+    }
+    finder(0, 0); finder(0, size-7); finder(size-7, 0);
+
+    for (let i = 8; i < size-8; i++) {
+      matrix[6][i] = i%2===0?1:0; reserved[6][i] = 1;
+      matrix[i][6] = i%2===0?1:0; reserved[i][6] = 1;
+    }
+
+    if (ALIGN[ver]) {
+      const ap = ALIGN[ver];
+      for (const r of ap) for (const c of ap) {
+        if (reserved[r][c]) continue;
+        for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
+          matrix[r+dr][c+dc] = (Math.abs(dr)===2||Math.abs(dc)===2||(dr===0&&dc===0)) ? 1 : 0;
+          reserved[r+dr][c+dc] = 1;
+        }
+      }
+    }
+
+    matrix[size-8][8] = 1; reserved[size-8][8] = 1;
+    for (let i = 0; i < 9; i++) { reserved[8][i] = 1; reserved[i][8] = 1; }
+    for (let i = 0; i < 8; i++) { reserved[8][size-1-i] = 1; reserved[size-1-i][8] = 1; }
+
+    return { matrix, reserved, size };
+  }
+
+  function placeData(matrix, reserved, size, codewords) {
+    let bi = 0;
+    const total = codewords.length * 8;
+    let col = size - 1;
+    while (col >= 0) {
+      if (col === 6) col--;
+      for (let rp = 0; rp < size; rp++) {
+        for (let co = 0; co < 2; co++) {
+          const c = col - co;
+          if (c < 0) continue;
+          const up = ((col + 1) & 2) === 0;
+          const r = up ? size - 1 - rp : rp;
+          if (r < 0 || r >= size || c < 0 || c >= size || reserved[r][c]) continue;
+          if (bi < total) {
+            matrix[r][c] = (codewords[bi >> 3] >> (7 - (bi & 7))) & 1;
+            bi++;
+          } else { matrix[r][c] = 0; }
+        }
+      }
+      col -= 2;
+    }
+  }
+
+  const MASKS = [
+    (r,c) => (r+c)%2===0,
+    (r,c) => r%2===0,
+    (r,c) => c%3===0,
+    (r,c) => (r+c)%3===0,
+    (r,c) => (Math.floor(r/2)+Math.floor(c/3))%2===0,
+    (r,c) => (r*c)%2+(r*c)%3===0,
+    (r,c) => ((r*c)%2+(r*c)%3)%2===0,
+    (r,c) => ((r+c)%2+(r*c)%3)%2===0,
+  ];
+
+  function applyMask(matrix, reserved, size, mi) {
+    const m = matrix.map(r => new Uint8Array(r));
+    const fn = MASKS[mi];
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+      if (!reserved[r][c] && fn(r, c)) m[r][c] ^= 1;
+    }
+    return m;
+  }
+
+  function bestMask(matrix, reserved, size) {
+    let best = 0, bestP = Infinity;
+    for (let mi = 0; mi < 8; mi++) {
+      const m = applyMask(matrix, reserved, size, mi);
+      let p = 0;
+      for (let r = 0; r < size; r++) { let run = 1; for (let c = 1; c < size; c++) { if (m[r][c]===m[r][c-1]) { run++; if (run===5) p+=3; else if (run>5) p++; } else run=1; } }
+      for (let c = 0; c < size; c++) { let run = 1; for (let r = 1; r < size; r++) { if (m[r][c]===m[r-1][c]) { run++; if (run===5) p+=3; else if (run>5) p++; } else run=1; } }
+      for (let r = 0; r < size-1; r++) for (let c = 0; c < size-1; c++) {
+        const v = m[r][c]; if (v===m[r][c+1]&&v===m[r+1][c]&&v===m[r+1][c+1]) p+=3;
+      }
+      if (p < bestP) { bestP = p; best = mi; }
+    }
+    return best;
+  }
+
+  function placeFormat(matrix, size, mi) {
+    const bits = FORMAT[mi];
+    const fb = Array.from({length:15}, (_, i) => (bits >> (14-i)) & 1);
+    const hp = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[8,size-8],[8,size-7],[8,size-6],[8,size-5],[8,size-4],[8,size-3],[8,size-2],[8,size-1]];
+    const vp = [[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[7,8],[size-7,8],[size-6,8],[size-5,8],[size-4,8],[size-3,8],[size-2,8],[size-1,8]];
+    for (let i = 0; i < hp.length; i++) { const [r,c] = hp[i]; matrix[r][c] = i < 8 ? fb[i] : fb[i-1]; }
+    for (let i = 0; i < vp.length; i++) { const [r,c] = vp[i]; matrix[r][c] = i < 7 ? fb[14-i] : fb[13-i]; }
+  }
+
+  return {
+    generate(text) {
+      const data = new TextEncoder().encode(text);
+      const ver = selectVersion(data.length);
+      const cw = encode(data, ver);
+      const full = addEC(cw, ver);
+      const { matrix, reserved, size } = createMatrix(ver);
+      placeData(matrix, reserved, size, full);
+      const mi = bestMask(matrix, reserved, size);
+      const masked = applyMask(matrix, reserved, size, mi);
+      placeFormat(masked, size, mi);
+      return masked;
+    }
+  };
+})();
+
+// ─── Canvas 绘制 QR ──────────────────────────────────
+function drawQR(text) {
+  const matrix = QR.generate(text);
+  const size = matrix.length;
+  const canvas = document.getElementById('qr');
+  const cell = Math.floor(200 / (size + 2));
+  const offset = Math.floor((200 - size * cell) / 2);
+  canvas.width = canvas.height = 200;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, 200, 200);
+  ctx.fillStyle = '#000';
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (matrix[r][c]) {
+        ctx.fillRect(offset + c * cell, offset + r * cell, cell, cell);
+      }
+    }
+  }
+}
+
+// ─── 初始化 ───────────────────────────────────────────
+window.electronAPI.onInit(({ lanUrl, uploadDir }) => {
+  const uploadUrl = lanUrl + '/upload';
+  document.getElementById('urlText').textContent = uploadUrl;
+  document.getElementById('infoText').innerHTML =
+    `📂 保存到：${uploadDir}<br>📱 手机和电脑需在同一 WiFi`;
+
+  drawQR(uploadUrl);
+
+  document.getElementById('urlBox').addEventListener('click', () => {
+    navigator.clipboard.writeText(uploadUrl).then(() => {
+      const el = document.getElementById('urlText');
+      const orig = el.textContent;
+      el.textContent = '✅ 已复制!';
+      setTimeout(() => el.textContent = orig, 1500);
+    });
+  });
+
+  document.getElementById('btnBrowser').addEventListener('click', () => {
+    window.electronAPI.openExternal(uploadUrl);
+  });
+
+  document.getElementById('btnFolder').addEventListener('click', () => {
+    window.electronAPI.openFolder(uploadDir);
+  });
+});
+
+window.electronAPI.onUploadDone((count) => {
+  document.getElementById('countText').textContent = `已接收 ${count} 个文件`;
+});
+</script>
+</body>
+</html>

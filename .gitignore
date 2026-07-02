@@ -1,8 +1,6 @@
-__pycache__/
-*.pyc
-*.pyo
+node_modules/
 dist/
-build/
-*.spec
+out/
 .DS_Store
 Thumbs.db
+*.log

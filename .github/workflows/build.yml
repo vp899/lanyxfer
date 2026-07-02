@@ -1,4 +1,4 @@
-name: Build All Platforms
+name: Build Electron
 
 on:
   push:
@@ -15,32 +15,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows x64
           - os: windows-latest
-            name: Windows-x64
-            artifact: lan_photo_transfer_win64.exe
-            python_arch: x64
-
-          # Windows x86 (32-bit)
-          - os: windows-latest
-            name: Windows-x86
-            artifact: lan_photo_transfer_win32.exe
-            python_arch: x86
-
-          # macOS Intel
+            name: Windows
+            build_cmd: npm run dist:win
           - os: macos-13
             name: macOS-x64
-            artifact: lan_photo_transfer_macos_x64
-
-          # macOS Apple Silicon
+            build_cmd: npm run dist:mac -- --x64
           - os: macos-latest
             name: macOS-arm64
-            artifact: lan_photo_transfer_macos_arm64
-
-          # Linux x64
+            build_cmd: npm run dist:mac -- --arm64
           - os: ubuntu-latest
-            name: Linux-x64
-            artifact: lan_photo_transfer_linux_x64
+            name: Linux
+            build_cmd: npm run dist:linux
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
@@ -48,33 +34,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
-          architecture: ${{ matrix.python_arch || 'x64' }}
+          node-version: '20'
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build
-        run: pyinstaller --onefile --name lan_photo_transfer --clean --noconfirm lan_photo_transfer.py
+        run: ${{ matrix.build_cmd }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rename artifact
+      - name: List artifacts
         shell: bash
-        run: |
-          cd dist
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            mv lan_photo_transfer.exe "${{ matrix.artifact }}"
-          else
-            mv lan_photo_transfer "${{ matrix.artifact }}"
-          fi
+        run: find dist -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" \) -exec ls -lh {} \;
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: dist/${{ matrix.artifact }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: warn
 
   release:
     needs: build
@@ -87,13 +73,10 @@ jobs:
         with:
           path: artifacts
 
-      - name: List files
-        run: find artifacts -type f
-
-      - name: Move files to release dir
+      - name: Flatten files
         run: |
           mkdir release
-          find artifacts -type f \! -name '*.zip' -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release/ \;
           ls -lh release/
 
       - name: Create Release
@@ -101,5 +84,3 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
-          draft: false
-          prerelease: false
