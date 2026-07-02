@@ -62,39 +62,54 @@ function getUploadDir() {
 }
 
 // ─── 解析 multipart ────────────────────────────────────
+function bufferSplit(buf, delim) {
+  const parts = [];
+  let start = 0;
+  while (start <= buf.length) {
+    const idx = buf.indexOf(delim, start);
+    if (idx === -1) {
+      parts.push(buf.slice(start));
+      break;
+    }
+    parts.push(buf.slice(start, idx));
+    start = idx + delim.length;
+  }
+  return parts;
+}
+
 function parseMultipart(body, boundary) {
   const delimiter = Buffer.from('--' + boundary);
   const eol = Buffer.from('\r\n');
+  const doubleEol = Buffer.from('\r\n\r\n');
   const files = [];
-  const parts = body.split(delimiter);
+  const parts = bufferSplit(body, delimiter);
 
   for (let seg of parts) {
-    seg = seg.toString();
-    seg = seg.trim();
-    if (seg === '--' || seg === '') continue;
-    if (seg.startsWith('\r\n')) seg = seg.slice(2);
-    if (seg.endsWith('--')) seg = seg.slice(0, -2);
-    seg = seg.trim();
-    if (!seg) continue;
+    // 去掉开头的 \r\n
+    if (seg.length >= 2 && seg[0] === 0x0d && seg[1] === 0x0a) seg = seg.slice(2);
+    // 去掉结尾的 --
+    if (seg.length >= 2 && seg[seg.length - 2] === 0x2d && seg[seg.length - 1] === 0x2d) seg = seg.slice(0, -2);
+    // 去掉尾部 \r\n
+    if (seg.length >= 2 && seg[seg.length - 2] === 0x0d && seg[seg.length - 1] === 0x0a) seg = seg.slice(0, -2);
+    if (seg.length === 0) continue;
 
-    const sepIdx = seg.indexOf('\r\n\r\n');
+    const sepIdx = seg.indexOf(doubleEol);
     if (sepIdx < 0) continue;
 
-    const hdr = seg.slice(0, sepIdx);
-    let fdata = seg.slice(sepIdx + 4);
-    if (fdata.endsWith('\r\n')) fdata = fdata.slice(0, -2);
+    const hdr = seg.slice(0, sepIdx).toString('utf8');
+    const fdata = seg.slice(sepIdx + 4);
 
     let filename = null;
     for (const line of hdr.split('\r\n')) {
       const m = line.match(/filename="(.+?)"/);
       if (m) { filename = m[1]; break; }
     }
-    if (!filename || !fdata) continue;
+    if (!filename || fdata.length === 0) continue;
 
     filename = path.basename(filename).replace(/\x00/g, '');
     if (!filename) continue;
 
-    files.push({ filename, data: Buffer.from(fdata, 'binary') });
+    files.push({ filename, data: fdata });
   }
   return files;
 }
