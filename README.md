@@ -19,9 +19,7 @@
 | 平台 | 文件 |
 |------|------|
 | Windows | `LAN Photo Transfer Setup *.exe` 或 `LAN Photo Transfer *.exe`（免安装） |
-| macOS Intel | `LAN Photo Transfer-*-x64.dmg` |
-| macOS Apple Silicon | `LAN Photo Transfer-*-arm64.dmg` |
-| Linux | `LAN Photo Transfer-*.AppImage` |
+| macOS | `LAN Photo Transfer-*-arm64.dmg` |
 
 ## 🛠 开发
 
@@ -36,7 +34,6 @@ npm start
 npm run dist          # 当前平台
 npm run dist:win      # Windows
 npm run dist:mac      # macOS
-npm run dist:linux    # Linux
 ```
 
 ## 📤 GitHub Actions 自动发布
@@ -46,7 +43,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-自动编译 Windows / macOS(x64+arm64) / Linux，生成 Release。
+自动编译 Windows + macOS，生成 Release。
 
 ## 🔧 配置
 

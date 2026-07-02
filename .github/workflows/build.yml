@@ -18,15 +18,9 @@ jobs:
           - os: windows-latest
             name: Windows
             build_cmd: npm run dist:win
-          - os: macos-13
-            name: macOS-x64
-            build_cmd: npm run dist:mac -- --x64
           - os: macos-latest
             name: macOS-arm64
             build_cmd: npm run dist:mac -- --arm64
-          - os: ubuntu-latest
-            name: Linux
-            build_cmd: npm run dist:linux
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
@@ -48,7 +42,7 @@ jobs:
 
       - name: List artifacts
         shell: bash
-        run: find dist -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" \) -exec ls -lh {} \;
+        run: find dist -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" \) -exec ls -lh {} \;
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -58,8 +52,6 @@ jobs:
             dist/*.exe
             dist/*.dmg
             dist/*.zip
-            dist/*.AppImage
-            dist/*.deb
           if-no-files-found: warn
 
   release:
@@ -76,7 +68,7 @@ jobs:
       - name: Flatten files
         run: |
           mkdir release
-          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.zip" \) -exec cp {} release/ \;
           ls -lh release/
 
       - name: Create Release
