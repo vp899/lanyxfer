@@ -1,0 +1,105 @@
+name: Build All Platforms
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - os: windows-latest
+            name: Windows-x64
+            artifact: lan_photo_transfer_win64.exe
+            pyinstaller_args: --onefile
+          - os: windows-latest
+            name: Windows-x86
+            artifact: lan_photo_transfer_win32.exe
+            pyinstaller_args: --onefile --target-architecture x86
+            python_arch: x86
+          - os: windows-latest
+            name: Windows-arm64
+            artifact: lan_photo_transfer_win_arm64.exe
+            pyinstaller_args: --onefile
+            # Note: cross-compile arm64 via crossenv or use x64 binary (runs via emulation)
+
+          # macOS
+          - os: macos-13
+            name: macOS-x64
+            artifact: lan_photo_transfer_macos_x64
+            pyinstaller_args: --onefile
+          - os: macos-latest
+            name: macOS-arm64
+            artifact: lan_photo_transfer_macos_arm64
+            pyinstaller_args: --onefile --target-arch arm64
+
+          # Linux
+          - os: ubuntu-latest
+            name: Linux-x64
+            artifact: lan_photo_transfer_linux_x64
+            pyinstaller_args: --onefile
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.python_arch || 'x64' }}
+
+      - name: Install dependencies
+        run: pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller ${{ matrix.pyinstaller_args }} \
+            --name lan_photo_transfer \
+            --clean \
+            --noconfirm \
+            lan_photo_transfer.py
+
+      - name: Rename artifact
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv lan_photo_transfer.exe "${{ matrix.artifact }}"
+          else
+            mv lan_photo_transfer "${{ matrix.artifact }}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release_files
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_files/**/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
