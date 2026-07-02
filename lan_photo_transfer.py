@@ -601,6 +601,7 @@ h1{{font-size:1.7em;margin-bottom:6px}}
 class PhotoHandler(http.server.BaseHTTPRequestHandler):
     upload_dir = UPLOAD_DIR
     lan_url = ""
+    qr_url = ""
     
     def log_message(self, fmt, *args):
         if "POST" in str(args):
@@ -609,8 +610,17 @@ class PhotoHandler(http.server.BaseHTTPRequestHandler):
     
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
+        ua = self.headers.get('User-Agent', '').lower()
+        is_mobile = any(k in ua for k in ('mobile', 'iphone', 'android', 'ipad'))
+        
         if path in ('/', '/index.html'):
-            html = get_index_page(self.lan_url, self.upload_dir)
+            if is_mobile:
+                # 手机访问根路径，直接跳转上传页
+                self.send_response(302)
+                self.send_header('Location', '/upload')
+                self.end_headers()
+                return
+            html = get_index_page(self.qr_url, self.upload_dir)
             self._html(200, html)
         elif path in ('/upload', '/mobile'):
             html = get_mobile_page()
@@ -746,9 +756,11 @@ def main():
     
     local_ip = get_local_ip()
     lan_url = f"http://{local_ip}:{PORT}"
+    qr_url = f"http://{local_ip}:{PORT}/upload"
     
     PhotoHandler.upload_dir = UPLOAD_DIR
     PhotoHandler.lan_url = lan_url
+    PhotoHandler.qr_url = qr_url
     
     socketserver.TCPServer.allow_reuse_address = True
     try:
@@ -767,6 +779,7 @@ def main():
     print("=" * 50)
     print()
     print(f"   🌐 地址: {lan_url}")
+    print(f"   📱 手机扫码: {lan_url}/upload")
     print(f"   📂 保存: {UPLOAD_DIR}")
     print(f"   📱 手机扫码或打开上方地址")
     print()
