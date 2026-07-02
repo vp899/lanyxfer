@@ -1,7 +1,7 @@
 {
-  "name": "lan-photo-transfer",
-  "version": "1.0.0",
-  "description": "局域网照片传输 - 手机扫码上传照片/视频到电脑",
+  "name": "localxfer",
+  "version": "1.0.9",
+  "description": "Localxfer - 局域网文件传输",
   "author": "LAN Photo Transfer",
   "main": "main.js",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "build": {
     "appId": "com.lan.photo.transfer",
-    "productName": "LAN Photo Transfer",
+    "productName": "Localxfer",
     "publish": null,
     "directories": {
       "output": "dist"

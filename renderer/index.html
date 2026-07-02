@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data:; img-src 'self' data:;">
-<title>局域网照片传输</title>
+<title>Localxfer</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -11,7 +11,6 @@ body {
   background: #fff;
   color: #333;
   user-select: none;
-  overflow: hidden;
 }
 .container {
   display: flex;
@@ -53,84 +52,52 @@ h1 { font-size: 20px; margin-bottom: 2px; }
 .url-box .label { font-size: 11px; color: #999; margin-bottom: 4px; }
 .url-box .url { font-size: 15px; font-weight: 700; color: #667eea; font-family: Consolas, monospace; }
 .url-box .hint { font-size: 10px; color: #bbb; margin-top: 4px; }
-.ip-list {
-  width: 100%;
-  margin-bottom: 12px;
-}
+.ip-list { width: 100%; margin-bottom: 10px; }
 .ip-list .title { font-size: 11px; color: #999; margin-bottom: 4px; text-align: center; }
-.ip-tabs {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
+.ip-tabs { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
 .ip-tab {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  cursor: pointer;
-  background: #f0f0f0;
-  color: #666;
-  border: 2px solid transparent;
-  transition: all .2s;
+  padding: 4px 10px; border-radius: 6px; font-size: 11px;
+  cursor: pointer; background: #f0f0f0; color: #666;
+  border: 2px solid transparent; transition: all .2s;
 }
 .ip-tab:hover { background: #e4e4e4; }
 .ip-tab.active { background: #eef0ff; color: #667eea; border-color: #667eea; }
-.info {
-  color: #999;
-  font-size: 12px;
-  line-height: 1.8;
-  text-align: center;
-  margin-bottom: auto;
+.dir-box {
+  width: 100%; background: #f8f8f8; border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
 }
-.status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  width: 100%;
+.dir-box .dir-label { font-size: 11px; color: #999; white-space: nowrap; }
+.dir-box .dir-path {
+  flex: 1; font-size: 12px; color: #333; font-family: Consolas, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.status .count {
-  flex: 1;
-  text-align: center;
-  font-size: 14px;
-  color: #2e7d32;
-  font-weight: 600;
+.dir-box .dir-btn {
+  background: #667eea; color: #fff; border: none; border-radius: 6px;
+  padding: 4px 10px; font-size: 11px; cursor: pointer; white-space: nowrap;
 }
-.btns {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  margin-bottom: 6px;
-}
+.dir-box .dir-btn:hover { background: #5a6fd6; }
+.status { margin-bottom: 12px; width: 100%; text-align: center; }
+.status .count { font-size: 14px; color: #2e7d32; font-weight: 600; }
+.btns { display: flex; gap: 8px; width: 100%; margin-bottom: 8px; }
 .btn {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .2s;
+  flex: 1; padding: 10px; border: none; border-radius: 10px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
 }
 .btn-primary { background: #667eea; color: #fff; }
 .btn-primary:hover { background: #5a6fd6; }
 .btn-secondary { background: #f0f0f0; color: #333; }
 .btn-secondary:hover { background: #e4e4e4; }
 .footer {
-  font-size: 11px;
-  color: #ccc;
-  text-align: center;
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
-  width: 100%;
+  font-size: 11px; color: #ccc; text-align: center;
+  padding-top: 8px; border-top: 1px solid #f0f0f0; width: 100%;
 }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>📸 局域网照片传输</h1>
-  <p class="sub">手机扫描二维码上传照片/视频</p>
+  <h1>📡 Localxfer</h1>
+  <p class="sub">局域网文件传输</p>
   <div class="badge">🟢 服务运行中</div>
 
   <div class="qr-wrap">
@@ -148,9 +115,10 @@ h1 { font-size: 20px; margin-bottom: 2px; }
     <div class="ip-tabs" id="ipTabs"></div>
   </div>
 
-  <div class="info" id="infoText">
-    📂 照片保存到：桌面 / LAN_Photos<br>
-    📱 手机和电脑需在同一 WiFi
+  <div class="dir-box">
+    <span class="dir-label">📂 共享目录：</span>
+    <span class="dir-path" id="dirPath">--</span>
+    <button class="dir-btn" id="btnChangeDir">更改</button>
   </div>
 
   <div class="status">
@@ -167,6 +135,7 @@ h1 { font-size: 20px; margin-bottom: 2px; }
 
 <script>
 let currentUrl = '';
+let sharedDir = '';
 let port = 9876;
 
 async function updateQR(ip) {
@@ -177,16 +146,15 @@ async function updateQR(ip) {
   if (dataUrl) document.getElementById('qr').src = dataUrl;
 }
 
-window.electronAPI.onInit(async ({ lanUrl, uploadDir }) => {
-  // 从 lanUrl 提取 ip 和 port
+window.electronAPI.onInit(async ({ lanUrl, sharedDir: dir }) => {
   const match = lanUrl.match(/\/\/(.+):(\d+)/);
   const defaultIP = match ? match[1] : '127.0.0.1';
   port = match ? match[2] : '9876';
+  sharedDir = dir;
 
-  document.getElementById('infoText').innerHTML =
-    '📂 保存到：' + uploadDir + '<br>📱 手机和电脑需在同一 WiFi';
+  document.getElementById('dirPath').textContent = dir;
 
-  // 获取所有可用 IP
+  // 多网卡
   const ips = await window.electronAPI.getAllIPs();
   if (ips.length > 1) {
     const tabs = document.getElementById('ipTabs');
@@ -221,12 +189,25 @@ window.electronAPI.onInit(async ({ lanUrl, uploadDir }) => {
   });
 
   document.getElementById('btnFolder').addEventListener('click', () => {
-    window.electronAPI.openFolder(uploadDir);
+    window.electronAPI.openFolder(sharedDir);
+  });
+
+  document.getElementById('btnChangeDir').addEventListener('click', async () => {
+    const newDir = await window.electronAPI.pickFolder();
+    if (newDir) {
+      sharedDir = newDir;
+      document.getElementById('dirPath').textContent = newDir;
+    }
   });
 });
 
 window.electronAPI.onUploadDone((count) => {
   document.getElementById('countText').textContent = '已接收 ' + count + ' 个文件';
+});
+
+window.electronAPI.onDirChanged((dir) => {
+  sharedDir = dir;
+  document.getElementById('dirPath').textContent = dir;
 });
 </script>
 </body>
