@@ -202,7 +202,7 @@ function createServer(uploadDir) {
 function createWindow(lanUrl) {
   mainWindow = new BrowserWindow({
     width: 420,
-    height: 580,
+    height: 640,
     resizable: false,
     title: '局域网照片传输',
     icon: path.join(__dirname, 'renderer', 'icon.png'),
